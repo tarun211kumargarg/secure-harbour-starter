@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /owner-portal
+Disallow: /owner-login

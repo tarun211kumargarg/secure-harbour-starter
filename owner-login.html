@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Owner Access | Secure Harbour</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Owner sign-in for Secure Harbour admin dashboard.">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="/">
+        <img src="/assets/logo.svg" alt="Secure Harbour logo">
+        <span>Secure Harbour</span>
+      </a>
+      <div class="header-cta">
+        <a class="btn btn-ghost" href="/">Back to site</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="container page-grid">
+        <article class="page-hero" style="padding: 32px;">
+          <div class="kicker">Owner access</div>
+          <h1 style="font-size: clamp(2rem, 4vw, 3.2rem);">Sign in to the private dashboard.</h1>
+          <p>This page is not linked from public navigation. Use the provider assigned to your Static Web Apps invitation and the custom <strong>owner</strong> role to access the dashboard.</p>
+        </article>
+        <aside class="form-card">
+          <h2>Choose a sign-in method</h2>
+          <p class="helper-text">If you were invited using Microsoft Entra ID, use Microsoft sign-in. If you were invited using GitHub, use GitHub sign-in.</p>
+          <div style="display:grid; gap:12px; margin-top: 18px;">
+            <a class="btn btn-primary" href="/login/aad">Continue with Microsoft</a>
+            <a class="btn btn-secondary" href="/login/github">Continue with GitHub</a>
+            <a class="btn btn-ghost" href="/owner-portal">Go to dashboard</a>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>

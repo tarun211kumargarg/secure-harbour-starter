@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contact Secure Harbour</title>
+  <meta name="description" content="Contact Secure Harbour to request a cybersecurity consultation or submit a service query.">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="/">
+        <img src="/assets/logo.svg" alt="Secure Harbour logo">
+        <span>Secure Harbour</span>
+      </a>
+      <nav class="nav">
+        <a href="/services" data-nav>Services</a>
+        <a href="/about" data-nav>About</a>
+        <a href="/contact" data-nav>Contact</a>
+      </nav>
+      <div class="header-cta">
+        <a class="btn btn-primary" href="/contact">Request Consultation</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="container">
+        <div class="page-hero">
+          <div class="kicker">Get in touch</div>
+          <h1>Request a consultation or submit your query.</h1>
+          <p>Your message is stored through a lightweight serverless backend and appears in the secure owner dashboard for review and follow-up.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container page-grid">
+        <article class="list-card">
+          <div class="kicker">Why this form works well</div>
+          <h2>Lead generation without unnecessary friction</h2>
+          <p class="helper-text">The fields are intentionally limited to what you need for follow-up and qualification. This keeps conversion smoother while still supporting admin filtering and status tracking.</p>
+          <ul>
+            <li>Name and company for lead context</li>
+            <li>Email and phone for follow-up</li>
+            <li>Service selection for routing and reporting</li>
+            <li>Message field for the problem statement</li>
+          </ul>
+          <p class="field-note">Generic contact details are used here intentionally so you can replace them later with real business information.</p>
+        </article>
+
+        <aside class="form-card">
+          <form data-query-form>
+            <div class="field-grid">
+              <div class="field">
+                <label for="name">Name</label>
+                <input id="name" name="name" type="text" maxlength="120" required>
+              </div>
+              <div class="field">
+                <label for="company">Company</label>
+                <input id="company" name="company" type="text" maxlength="120">
+              </div>
+              <div class="field">
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" maxlength="180" required>
+              </div>
+              <div class="field">
+                <label for="phone">Phone</label>
+                <input id="phone" name="phone" type="tel" maxlength="30">
+              </div>
+              <div class="field span-2">
+                <label for="serviceInterestedIn">Service Interested In</label>
+                <select id="serviceInterestedIn" name="serviceInterestedIn" data-service-select required>
+                  <option value="">Select a service</option>
+                  <option>AI Security</option>
+                  <option>Penetration Testing</option>
+                  <option>Red Teaming</option>
+                  <option>Vulnerability Assessment</option>
+                  <option>Security Consulting</option>
+                </select>
+              </div>
+              <div class="field span-2">
+                <label for="message">Message</label>
+                <textarea id="message" name="message" maxlength="2500" required></textarea>
+              </div>
+              <div class="field" style="display:none;">
+                <label for="website">Website</label>
+                <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+              </div>
+            </div>
+            <div class="notice" data-form-notice></div>
+            <div style="margin-top: 16px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+              <button class="btn btn-primary" type="submit">Submit Query</button>
+              <span class="field-note">Your details go to the private admin dashboard.</span>
+            </div>
+          </form>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <strong>Secure Harbour</strong>
+        <div class="meta">hello@secureharbour.example | +91-0000-000-000</div>
+      </div>
+      <div class="footer-meta">
+        <span>Phase 3, Okhla, New Delhi</span>
+        <span>&copy; <span data-year></span></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/assets/app.js"></script>
+  <script src="/assets/contact.js"></script>
+</body>
+</html>
