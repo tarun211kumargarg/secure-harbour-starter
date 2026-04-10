@@ -4,12 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: "Azure preview URL or your live site URL"
+        description: "https://kind-island-0768a5f00.1.azurestaticapps.net/"
         required: true
         type: string
-  push:
-    branches:
-      - main
 
 jobs:
   run-xss-scout:
@@ -25,14 +22,17 @@ jobs:
           node-version: 22
 
       - name: Install packages
+        working-directory: agents
         run: npm install
 
       - name: Run XSS agent
-        run: npm run agent:xss
+        working-directory: agents
+        run: npm run xss
         env:
           TARGET_URL: ${{ inputs.target_url }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: gpt-5.4
 
       - name: Show report
+        working-directory: agents
         run: cat xss-report.txt
