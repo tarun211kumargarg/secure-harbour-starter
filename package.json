@@ -1,0 +1,11 @@
+{
+  "name": "secure-harbour-agents",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "agent:xss": "node agents/xss-scout.js"
+  },
+  "dependencies": {
+    "openai": "^4.0.0"
+  }
+}

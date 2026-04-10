@@ -1,0 +1,35 @@
+name: XSS Scout
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Azure preview URL or your live site URL"
+        required: true
+        type: string
+
+jobs:
+  run-xss-scout:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install packages
+        run: npm install
+
+      - name: Run XSS agent
+        run: npm run agent:xss
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: gpt-5.4
+
+      - name: Show report
+        run: cat xss-report.txt
