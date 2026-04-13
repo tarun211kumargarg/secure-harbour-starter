@@ -19,15 +19,11 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22
-
-      - name: Install packages
-        working-directory: agents
-        run: npm install
+          node-version: 24
 
       - name: Run XSS agent
         working-directory: agents
-        run: npm run xss
+        run: node xss-scout.js
         env:
           TARGET_URL: ${{ inputs.target_url }}
 
