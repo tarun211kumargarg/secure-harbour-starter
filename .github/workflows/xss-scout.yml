@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: "https://kind-island-0768a5f00.1.azurestaticapps.net/"
+        description: "Your website URL"
         required: true
         type: string
 
@@ -30,8 +30,6 @@ jobs:
         run: npm run xss
         env:
           TARGET_URL: ${{ inputs.target_url }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: gpt-5.4
 
       - name: Show report
         working-directory: agents
