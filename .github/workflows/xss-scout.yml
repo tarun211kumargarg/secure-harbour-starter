@@ -26,7 +26,3 @@ jobs:
         run: node xss-scout.js
         env:
           TARGET_URL: ${{ inputs.target_url }}
-
-      - name: Show report
-        working-directory: agents
-        run: cat xss-report.txt
