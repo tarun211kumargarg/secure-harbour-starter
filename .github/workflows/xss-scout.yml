@@ -7,17 +7,14 @@ on:
         description: "Your site URL or Azure preview URL"
         required: true
         type: string
-      allow_form_post:
-        description: "false for first run; true only for your own preview/staging if you want one active POST probe"
-        required: true
-        default: "false"
-        type: string
+
+permissions:
+  contents: read
+  models: read
 
 jobs:
   run-xss-scout:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     steps:
       - name: Checkout repo
@@ -28,13 +25,12 @@ jobs:
         with:
           node-version: 24
 
-      - name: Run autonomous XSS agent
+      - name: Run agentic XSS scout
         run: node agents/xss-scout.js
         env:
           TARGET_URL: ${{ inputs.target_url }}
-          ALLOW_FORM_POST: ${{ inputs.allow_form_post }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: gpt-5.4
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LLM_MODEL: openai/gpt-4.1
           MAX_AGENT_TURNS: "6"
 
       - name: Show final report

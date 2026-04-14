@@ -1,15 +1,11 @@
+'use strict';
+
 const fs = require('node:fs');
 const path = require('node:path');
+const { createChatCompletion, getAssistantText } = require('./llm-client');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const TARGET_URL = process.env.TARGET_URL;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.4';
-const ALLOW_FORM_POST = String(process.env.ALLOW_FORM_POST || 'false').toLowerCase() === 'true';
-const MAX_AGENT_TURNS = Number(process.env.MAX_AGENT_TURNS || '6');
-
-if (!OPENAI_API_KEY) {
-  throw new Error('OPENAI_API_KEY is missing');
-}
+const MAX_TURNS = Number(process.env.MAX_AGENT_TURNS || '6');
 
 if (!TARGET_URL) {
   throw new Error('TARGET_URL is missing');
@@ -20,15 +16,9 @@ const reportPath = path.join(repoRoot, 'agents', 'xss-report.md');
 const targetBase = new URL(TARGET_URL);
 const targetOrigin = targetBase.origin;
 
-const INTERESTING_HEADERS = [
-  'content-type',
-  'content-security-policy',
-  'x-frame-options',
-  'x-content-type-options',
-  'strict-transport-security',
-  'referrer-policy',
-  'permissions-policy'
-];
+function clip(text, max = 7000) {
+  return text.length <= max ? text : `${text.slice(0, max)}\n...[truncated]`;
+}
 
 function resolveSameOriginUrl(rawUrl) {
   const url = new URL(rawUrl, targetBase);
@@ -38,30 +28,77 @@ function resolveSameOriginUrl(rawUrl) {
   return url;
 }
 
-async function fetchText(url, options = {}) {
-  const headers = {
-    'user-agent': 'SecureHarbour-XSS-Agent/1.0',
-    ...(options.headers || {})
-  };
+async function fetchPage(url) {
+  const finalUrl = resolveSameOriginUrl(url).toString();
 
-  const res = await fetch(url, {
-    ...options,
-    headers,
+  const res = await fetch(finalUrl, {
+    headers: {
+      'User-Agent': 'SecureHarbour-XSS-Scout/1.0'
+    },
     redirect: 'follow'
   });
 
-  const body = await res.text();
-  const selectedHeaders = {};
+  const html = await res.text();
 
-  for (const headerName of INTERESTING_HEADERS) {
-    selectedHeaders[headerName] = res.headers.get(headerName);
+  return {
+    url: res.url,
+    status: res.status,
+    headers: {
+      'content-security-policy': res.headers.get('content-security-policy'),
+      'x-frame-options': res.headers.get('x-frame-options'),
+      'x-content-type-options': res.headers.get('x-content-type-options'),
+      'strict-transport-security': res.headers.get('strict-transport-security'),
+      'referrer-policy': res.headers.get('referrer-policy')
+    },
+    html_excerpt: clip(html)
+  };
+}
+
+function extractAttr(tag, attrName) {
+  const regex = new RegExp(`${attrName}\\s*=\\s*["']([^"']+)["']`, 'i');
+  const match = tag.match(regex);
+  return match ? match[1] : null;
+}
+
+async function extractForms(url) {
+  const page = await fetchPage(url);
+  const html = page.html_excerpt.includes('...[truncated]')
+    ? (await (await fetch(resolveSameOriginUrl(url).toString())).text())
+    : page.html_excerpt;
+
+  const forms = [];
+  const formMatches = [...html.matchAll(/<form\b[\s\S]*?<\/form>/gi)];
+
+  for (const formMatch of formMatches.slice(0, 10)) {
+    const formHtml = formMatch[0];
+    const openTagMatch = formHtml.match(/<form\b[^>]*>/i);
+    const openTag = openTagMatch ? openTagMatch[0] : '<form>';
+
+    const fields = [];
+    const fieldMatches = [...formHtml.matchAll(/<(input|textarea|select)\b[^>]*>/gi)];
+
+    for (const fieldMatch of fieldMatches.slice(0, 30)) {
+      const tag = fieldMatch[0];
+      const kind = fieldMatch[1].toLowerCase();
+      fields.push({
+        tag: kind,
+        name: extractAttr(tag, 'name'),
+        type: extractAttr(tag, 'type') || (kind === 'textarea' ? 'textarea' : null),
+        id: extractAttr(tag, 'id')
+      });
+    }
+
+    forms.push({
+      action: extractAttr(openTag, 'action'),
+      method: (extractAttr(openTag, 'method') || 'GET').toUpperCase(),
+      fields
+    });
   }
 
   return {
-    final_url: res.url,
-    status: res.status,
-    headers: selectedHeaders,
-    body
+    url: page.url,
+    status: page.status,
+    forms
   };
 }
 
@@ -87,16 +124,12 @@ function walk(dir, files = []) {
     }
 
     const ext = path.extname(entry.name).toLowerCase();
-    if (['.js', '.cjs', '.mjs', '.ts', '.tsx', '.html'].includes(ext)) {
+    if (['.js', '.cjs', '.mjs', '.html', '.ts', '.tsx'].includes(ext)) {
       files.push(fullPath);
     }
   }
 
   return files;
-}
-
-function clip(text, max = 9000) {
-  return text.length <= max ? text : `${text.slice(0, max)}\n...[truncated]`;
 }
 
 function scanCodeSinks() {
@@ -118,14 +151,14 @@ function scanCodeSinks() {
       const matches = [...text.matchAll(pattern.regex)];
       for (const match of matches.slice(0, 3)) {
         const index = match.index || 0;
-        const snippetStart = Math.max(0, index - 120);
-        const snippetEnd = Math.min(text.length, index + 220);
+        const start = Math.max(0, index - 120);
+        const end = Math.min(text.length, index + 220);
 
         findings.push({
           file: path.relative(repoRoot, file).replace(/\\/g, '/'),
           pattern: pattern.name,
           line: lineNumber(text, index),
-          snippet: text.slice(snippetStart, snippetEnd)
+          snippet: text.slice(start, end)
         });
       }
     }
@@ -133,48 +166,8 @@ function scanCodeSinks() {
 
   return {
     total_findings: findings.length,
-    findings: findings.slice(0, 40)
+    findings: findings.slice(0, 30)
   };
-}
-
-function extractAttr(tag, attrName) {
-  const regex = new RegExp(`${attrName}\\s*=\\s*["']([^"']+)["']`, 'i');
-  const match = tag.match(regex);
-  return match ? match[1] : null;
-}
-
-function extractFormsFromHtml(html) {
-  const forms = [];
-  const formMatches = [...html.matchAll(/<form\b[\s\S]*?<\/form>/gi)];
-
-  for (const formMatch of formMatches.slice(0, 10)) {
-    const formHtml = formMatch[0];
-    const openTagMatch = formHtml.match(/<form\b[^>]*>/i);
-    const openTag = openTagMatch ? openTagMatch[0] : '<form>';
-
-    const fields = [];
-    const fieldMatches = [
-      ...formHtml.matchAll(/<(input|textarea|select)\b[^>]*>/gi)
-    ];
-
-    for (const fieldMatch of fieldMatches.slice(0, 30)) {
-      const tag = fieldMatch[0];
-      fields.push({
-        tag: fieldMatch[1].toLowerCase(),
-        name: extractAttr(tag, 'name'),
-        type: extractAttr(tag, 'type') || (fieldMatch[1].toLowerCase() === 'textarea' ? 'textarea' : null),
-        id: extractAttr(tag, 'id')
-      });
-    }
-
-    forms.push({
-      action: extractAttr(openTag, 'action'),
-      method: (extractAttr(openTag, 'method') || 'GET').toUpperCase(),
-      fields
-    });
-  }
-
-  return forms;
 }
 
 function readFileSnippet(filePath, searchTerm = '') {
@@ -205,276 +198,146 @@ function readFileSnippet(filePath, searchTerm = '') {
   };
 }
 
-async function postJsonProbe(args) {
-  if (!ALLOW_FORM_POST) {
-    return {
-      blocked: true,
-      reason: 'ALLOW_FORM_POST is false'
-    };
+const toolMap = {
+  fetch_page: async (args) => fetchPage(args.url),
+  extract_forms: async (args) => extractForms(args.url),
+  scan_code_sinks: async () => scanCodeSinks(),
+  read_file_snippet: async (args) => readFileSnippet(args.file_path, args.search_term || '')
+};
+
+function extractJson(text) {
+  const cleaned = text.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+  const first = cleaned.indexOf('{');
+  const last = cleaned.lastIndexOf('}');
+  if (first === -1 || last === -1 || last <= first) {
+    throw new Error(`Could not find JSON object in model response: ${cleaned}`);
   }
-
-  const url = resolveSameOriginUrl(args.url).toString();
-  const jsonBody = args.json_body || {};
-
-  const res = await fetchText(url, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify(jsonBody)
-  });
-
-  return {
-    final_url: res.final_url,
-    status: res.status,
-    headers: res.headers,
-    body_excerpt: clip(res.body, 5000)
-  };
+  return JSON.parse(cleaned.slice(first, last + 1));
 }
 
-async function runTool(name, args) {
-  switch (name) {
-    case 'fetch_page': {
-      const url = resolveSameOriginUrl(args.url).toString();
-      const res = await fetchText(url);
-      return {
-        final_url: res.final_url,
-        status: res.status,
-        headers: res.headers,
-        body_excerpt: clip(res.body, 8000)
-      };
-    }
-
-    case 'extract_forms': {
-      const url = resolveSameOriginUrl(args.url).toString();
-      const res = await fetchText(url);
-      return {
-        final_url: res.final_url,
-        status: res.status,
-        forms: extractFormsFromHtml(res.body)
-      };
-    }
-
-    case 'scan_code_sinks':
-      return scanCodeSinks();
-
-    case 'read_file_snippet':
-      return readFileSnippet(args.file_path, args.search_term || '');
-
-    case 'post_json_probe':
-      return postJsonProbe(args);
-
-    default:
-      return {
-        error: `Unknown tool: ${name}`
-      };
+async function askModel(messages) {
+  const response = await createChatCompletion(messages);
+  const text = getAssistantText(response);
+  if (!text) {
+    throw new Error('Model returned empty content');
   }
-}
-
-const tools = [
-  {
-    type: 'function',
-    name: 'fetch_page',
-    description: 'Fetch a same-origin page and return status, selected security headers, and an HTML excerpt.',
-    parameters: {
-      type: 'object',
-      properties: {
-        url: { type: 'string' }
-      },
-      required: ['url'],
-      additionalProperties: false
-    }
-  },
-  {
-    type: 'function',
-    name: 'extract_forms',
-    description: 'Fetch a same-origin page and list forms, methods, actions, and fields.',
-    parameters: {
-      type: 'object',
-      properties: {
-        url: { type: 'string' }
-      },
-      required: ['url'],
-      additionalProperties: false
-    }
-  },
-  {
-    type: 'function',
-    name: 'scan_code_sinks',
-    description: 'Scan the checked-out repository for common DOM XSS sinks and dangerous rendering patterns.',
-    parameters: {
-      type: 'object',
-      properties: {},
-      additionalProperties: false
-    }
-  },
-  {
-    type: 'function',
-    name: 'read_file_snippet',
-    description: 'Read a specific repository file and return a snippet around a search term.',
-    parameters: {
-      type: 'object',
-      properties: {
-        file_path: { type: 'string' },
-        search_term: { type: 'string' }
-      },
-      required: ['file_path'],
-      additionalProperties: false
-    }
-  },
-  {
-    type: 'function',
-    name: 'post_json_probe',
-    description: 'Send one controlled JSON POST probe to a same-origin endpoint. Use only if active probing is enabled.',
-    parameters: {
-      type: 'object',
-      properties: {
-        url: { type: 'string' },
-        json_body: { type: 'object' }
-      },
-      required: ['url', 'json_body'],
-      additionalProperties: false
-    }
-  }
-];
-
-async function createResponse(input, previousResponseId) {
-  const body = {
-    model: OPENAI_MODEL,
-    tools,
-    input
-  };
-
-  if (previousResponseId) {
-    body.previous_response_id = previousResponseId;
-  }
-
-  const res = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${OPENAI_API_KEY}`
-    },
-    body: JSON.stringify(body)
-  });
-
-  const text = await res.text();
-
-  if (!res.ok) {
-    throw new Error(`OpenAI API error ${res.status}: ${text}`);
-  }
-
-  return JSON.parse(text);
-}
-
-function getFunctionCalls(response) {
-  return (response.output || []).filter((item) => item.type === 'function_call');
-}
-
-function extractFinalText(response) {
-  if (typeof response.output_text === 'string' && response.output_text.trim()) {
-    return response.output_text;
-  }
-
-  const chunks = [];
-
-  for (const item of response.output || []) {
-    if (item.type === 'message' && Array.isArray(item.content)) {
-      for (const contentItem of item.content) {
-        if (contentItem.type === 'output_text' && typeof contentItem.text === 'string') {
-          chunks.push(contentItem.text);
-        } else if (contentItem.type === 'text' && typeof contentItem.text === 'string') {
-          chunks.push(contentItem.text);
-        }
-      }
-    }
-  }
-
-  return chunks.join('\n\n').trim() || JSON.stringify(response, null, 2);
+  return text;
 }
 
 async function main() {
-  const kickoffPrompt = `
-You are Secure Harbour's autonomous XSS testing agent.
-
-Rules:
-- Scope is LIMITED to the same-origin target: ${TARGET_URL}
-- Scope also includes the checked-out source repository for this target
-- Do not inspect or call any off-origin URL
-- Use tools autonomously
-- Maximum tool rounds: ${MAX_AGENT_TURNS}
-- Active POST probing is ${ALLOW_FORM_POST ? 'ENABLED' : 'DISABLED'}
-- If active POST probing is disabled, do not use post_json_probe unless you are explaining what would be tested next
-
-Mission:
-1. Identify likely reflected and stored XSS areas
-2. Inspect public pages first
-3. Prioritize form pages, client-side rendering code, admin/dashboard rendering, and risky DOM sinks
-4. Use scan_code_sinks and read_file_snippet when you need code evidence
-5. If you see likely API routes in HTML or code, mention them
-6. Finish with markdown sections exactly in this order:
-
-# Verdict
-# Pages checked
-# Likely XSS areas
-# Evidence
-# Recommended fixes
-# Next probes
-`;
-
-  let response = await createResponse(kickoffPrompt);
-
-  for (let turn = 0; turn < MAX_AGENT_TURNS; turn += 1) {
-    const functionCalls = getFunctionCalls(response);
-
-    if (!functionCalls.length) {
-      break;
+  const messages = [
+    {
+      role: 'system',
+      content:
+        `You are Secure Harbour's autonomous XSS testing agent.\n` +
+        `Scope is limited to the same-origin target ${TARGET_URL} and the checked-out repository.\n` +
+        `You must choose exactly one action per turn from this list:\n` +
+        `1. fetch_page { "url": "..." }\n` +
+        `2. extract_forms { "url": "..." }\n` +
+        `3. scan_code_sinks { }\n` +
+        `4. read_file_snippet { "file_path": "...", "search_term": "optional" }\n` +
+        `5. finish { "report_markdown": "..." }\n\n` +
+        `Reply in STRICT JSON only, with this shape:\n` +
+        `{"action":"fetch_page|extract_forms|scan_code_sinks|read_file_snippet|finish","args":{},"reason":"...","report_markdown":"...only for finish"}\n\n` +
+        `Priorities:\n` +
+        `- inspect public pages first\n` +
+        `- identify user input points\n` +
+        `- identify dangerous DOM sinks\n` +
+        `- connect user-controlled inputs to unsafe rendering paths\n` +
+        `- finish with a markdown report using these sections in order:\n` +
+        `# Verdict\n# Pages checked\n# Likely XSS areas\n# Evidence\n# Recommended fixes\n# Next probes`
+    },
+    {
+      role: 'user',
+      content:
+        `Start by assessing this site for reflected or stored XSS risk.\n` +
+        `Target URL: ${TARGET_URL}\n` +
+        `Repository root is available through tools.\n` +
+        `You may take up to ${MAX_TURNS} tool turns before finishing.`
     }
+  ];
 
-    const toolOutputs = [];
+  for (let turn = 1; turn <= MAX_TURNS; turn += 1) {
+    const reply = await askModel(messages);
+    console.log(`\n=== MODEL TURN ${turn} ===\n${reply}\n`);
 
-    for (const call of functionCalls) {
-      let args = {};
-      try {
-        args = call.arguments ? JSON.parse(call.arguments) : {};
-      } catch (error) {
-        args = {
-          parse_error: String(error),
-          raw_arguments: call.arguments || ''
-        };
-      }
-
-      console.log(`\n[tool-call] ${call.name}`);
-      console.log(JSON.stringify(args, null, 2));
-
-      const result = await runTool(call.name, args);
-
-      toolOutputs.push({
-        type: 'function_call_output',
-        call_id: call.call_id,
-        output: JSON.stringify(result)
+    let decision;
+    try {
+      decision = extractJson(reply);
+    } catch (err) {
+      messages.push({
+        role: 'assistant',
+        content: reply
       });
+      messages.push({
+        role: 'user',
+        content:
+          `Your last reply was not valid JSON. Reply again in STRICT JSON with keys action, args, reason, report_markdown.`
+      });
+      continue;
     }
 
-    response = await createResponse(toolOutputs, response.id);
+    const action = decision.action;
+    const args = decision.args || {};
+
+    if (action === 'finish') {
+      const report = decision.report_markdown || '# Verdict\nNo report produced.';
+      fs.writeFileSync(reportPath, report, 'utf8');
+      console.log('\n===== FINAL XSS AGENT REPORT =====\n');
+      console.log(report);
+      return;
+    }
+
+    if (!toolMap[action]) {
+      messages.push({
+        role: 'assistant',
+        content: reply
+      });
+      messages.push({
+        role: 'user',
+        content: `The action "${action}" is not allowed. Choose one of: ${Object.keys(toolMap).join(', ')}, finish.`
+      });
+      continue;
+    }
+
+    let toolResult;
+    try {
+      toolResult = await toolMap[action](args);
+    } catch (err) {
+      toolResult = { error: String(err) };
+    }
+
+    messages.push({
+      role: 'assistant',
+      content: reply
+    });
+    messages.push({
+      role: 'user',
+      content:
+        `TOOL_RESULT for ${action}:\n` +
+        `${JSON.stringify(toolResult, null, 2)}\n\n` +
+        `Decide the next best action. If you have enough evidence, use finish.`
+    });
   }
 
-  if (getFunctionCalls(response).length) {
-    response = await createResponse(
-      'Stop using tools now and provide the final markdown report only.',
-      response.id
-    );
-  }
+  const finalReply = await askModel([
+    ...messages,
+    {
+      role: 'user',
+      content:
+        `You have reached the turn limit. Do not ask for more tools. Reply with finish JSON now and include the full markdown report in report_markdown.`
+    }
+  ]);
 
-  const finalReport = extractFinalText(response);
-
-  fs.writeFileSync(reportPath, finalReport, 'utf8');
+  const finalDecision = extractJson(finalReply);
+  const report = finalDecision.report_markdown || '# Verdict\nNo report produced.';
+  fs.writeFileSync(reportPath, report, 'utf8');
 
   console.log('\n===== FINAL XSS AGENT REPORT =====\n');
-  console.log(finalReport);
+  console.log(report);
 }
 
-main().catch((error) => {
-  console.error(error);
+main().catch((err) => {
+  console.error(err);
   process.exit(1);
 });
