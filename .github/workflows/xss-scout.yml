@@ -34,4 +34,18 @@ jobs:
           MAX_AGENT_TURNS: "6"
 
       - name: Show final report
-        run: cat agents/xss-report.md
+        if: always()
+        run: |
+          if [ -f agents/xss-report.md ]; then
+            cat agents/xss-report.md
+          else
+            echo "xss-report.md was not created"
+          fi
+
+      - name: Upload final report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xss-report
+          path: agents/xss-report.md
+          if-no-files-found: warn
