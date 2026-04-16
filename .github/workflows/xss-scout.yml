@@ -15,65 +15,133 @@ permissions:
 jobs:
   testing_agent:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
         with:
           node-version: 24
-      - run: npm install
-      - run: npx playwright install --with-deps
-      - run: node agents/testing-agent.js
+
+      - name: Install agent dependencies
+        working-directory: agents
+        run: npm install
+
+      - name: Install Playwright browsers
+        working-directory: agents
+        run: npx playwright install --with-deps
+
+      - name: Run testing agent
+        run: node agents/testing-agent.js
         env:
           TARGET_URL: ${{ inputs.target_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LLM_MODEL: openai/gpt-4.1
-      - uses: actions/upload-artifact@v4
+          MAX_AGENT_TURNS: "6"
+
+      - name: Show testing report
+        if: always()
+        run: |
+          if [ -f agents/testing-report.md ]; then
+            cat agents/testing-report.md
+          else
+            echo "testing-report.md was not created"
+          fi
+
+      - name: Upload testing output
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: testing-output
           path: |
             agents/findings.json
             agents/testing-report.md
             agents/screenshots/
+          if-no-files-found: warn
 
   patching_agent:
     needs: testing_agent
     environment: patch-approval
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
         with:
           node-version: 24
-      - uses: actions/download-artifact@v4
+
+      - name: Download testing output
+        uses: actions/download-artifact@v4
         with:
           name: testing-output
           path: agents/testing-output
-      - run: node agents/patch-agent.js
+
+      - name: Run patching agent
+        run: node agents/patch-agent.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LLM_MODEL: openai/gpt-4.1
-      - uses: actions/upload-artifact@v4
+
+      - name: Show patch report
+        if: always()
+        run: |
+          if [ -f agents/patch-report.md ]; then
+            cat agents/patch-report.md
+          else
+            echo "patch-report.md was not created"
+          fi
+
+      - name: Upload patch output
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: patch-output
           path: |
             agents/patch-report.md
             agents/remediation.patch
+          if-no-files-found: warn
 
   final_report:
     needs: [testing_agent, patching_agent]
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v4
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Download testing output
+        uses: actions/download-artifact@v4
         with:
           name: testing-output
           path: agents/testing-output
-      - uses: actions/download-artifact@v4
+
+      - name: Download patch output
+        uses: actions/download-artifact@v4
         with:
           name: patch-output
           path: agents/patch-output
-      - run: node agents/final-report.js
-      - uses: actions/upload-artifact@v4
+
+      - name: Build final report
+        run: node agents/final-report.js
+
+      - name: Show final report
+        if: always()
+        run: |
+          if [ -f agents/final-report.md ]; then
+            cat agents/final-report.md
+          else
+            echo "final-report.md was not created"
+          fi
+
+      - name: Upload final report
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: final-xss-report
           path: agents/final-report.md
+          if-no-files-found: warn
