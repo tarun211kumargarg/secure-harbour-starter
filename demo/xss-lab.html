@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>XSS Lab</title>
+</head>
+<body>
+  <h1>XSS Lab</h1>
+  <textarea id="message" rows="6" cols="60"></textarea>
+  <button id="renderBtn">Render Preview</button>
+  <div id="preview" style="margin-top:20px;border:1px solid #ccc;padding:12px;"></div>
+
+  <script>
+    const renderBtn = document.getElementById('renderBtn');
+    const messageInput = document.getElementById('message');
+    const preview = document.getElementById('preview');
+
+    renderBtn.addEventListener('click', () => {
+      // demo-only vulnerable sink
+      preview.innerHTML = messageInput.value;
+    });
+  </script>
+</body>
+</html>
