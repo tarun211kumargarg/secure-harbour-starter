@@ -57,10 +57,6 @@ function extractJsonObject(text) {
   return JSON.parse(cleaned.slice(first, last + 1));
 }
 
-function readIfExists(filePath) {
-  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
-}
-
 async function saveShot(page, label) {
   const filePath = path.join(
     screenshotsDir,
@@ -176,15 +172,12 @@ async function inspectPage(page, args = {}) {
 }
 
 async function inspectRepoFile() {
-  const rootFile = path.join(repoRoot, 'xss-lab.html');
-  const demoFile = path.join(repoRoot, 'demo', 'xss-lab.html');
-
-  const chosenPath = fs.existsSync(rootFile) ? rootFile : demoFile;
-  const text = fs.readFileSync(chosenPath, 'utf8');
+  const targetFilePath = path.join(repoRoot, 'demo', 'xss-lab.html');
+  const text = fs.readFileSync(targetFilePath, 'utf8');
 
   return {
     action: 'inspect_repo_file',
-    file: path.relative(repoRoot, chosenPath).replace(/\\/g, '/'),
+    file: 'demo/xss-lab.html',
     vulnerable_innerhtml_present: text.includes('preview.innerHTML = messageInput.value;'),
     file_excerpt: clip(text, 4000)
   };
