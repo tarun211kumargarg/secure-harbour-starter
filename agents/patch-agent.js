@@ -10,14 +10,11 @@ const testingOutputDir = path.join(agentsDir, 'testing-output');
 const findingsPath = path.join(testingOutputDir, 'findings.json');
 const patchReportPath = path.join(agentsDir, 'patch-report.md');
 const remediationPatchPath = path.join(agentsDir, 'remediation.patch');
+const targetFilePath = path.join(repoRoot, 'demo', 'xss-lab.html');
 
 if (!fs.existsSync(findingsPath)) {
   throw new Error(`Missing findings.json: ${findingsPath}`);
 }
-
-const rootFile = path.join(repoRoot, 'xss-lab.html');
-const demoFile = path.join(repoRoot, 'demo', 'xss-lab.html');
-const targetFilePath = fs.existsSync(rootFile) ? rootFile : demoFile;
 
 if (!fs.existsSync(targetFilePath)) {
   throw new Error(`Missing target file: ${targetFilePath}`);
@@ -37,7 +34,7 @@ if (original.includes(vulnerableLine)) {
   patchApplied = true;
 }
 
-const relativeTarget = path.relative(repoRoot, targetFilePath).replace(/\\/g, '/');
+const relativeTarget = 'demo/xss-lab.html';
 
 const patchReport = [
   '# Patch Agent Verdict',
