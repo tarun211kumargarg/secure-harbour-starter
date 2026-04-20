@@ -57,6 +57,10 @@ function extractJsonObject(text) {
   return JSON.parse(cleaned.slice(first, last + 1));
 }
 
+function readIfExists(filePath) {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
+}
+
 async function saveShot(page, label) {
   const filePath = path.join(
     screenshotsDir,
@@ -76,7 +80,6 @@ async function getBodyExcerpt(page) {
   }
 }
 
-// ACTUAL LLM CALL
 async function askTestingLLM(messages) {
   const response = await fetch('https://models.github.ai/inference/chat/completions', {
     method: 'POST',
@@ -104,7 +107,7 @@ async function askTestingLLM(messages) {
 }
 
 async function openLab(page) {
-  const labUrl = new URL('/demo/xss-lab.html', TARGET_URL).toString();
+  const labUrl = new URL('/xss-lab.html', TARGET_URL).toString();
   await page.goto(labUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
   state.currentUrl = page.url();
@@ -126,7 +129,7 @@ async function submitPayload(page, args = {}) {
   const payload = args.payload || '<img src=x onerror=alert("XSS-LAB")>';
   state.lastPayload = payload;
 
-  if (!page.url().includes('/demo/xss-lab.html')) {
+  if (!page.url().includes('/xss-lab.html')) {
     await openLab(page);
   }
 
@@ -173,12 +176,15 @@ async function inspectPage(page, args = {}) {
 }
 
 async function inspectRepoFile() {
-  const filePath = path.join(repoRoot, 'demo', 'xss-lab.html');
-  const text = fs.readFileSync(filePath, 'utf8');
+  const rootFile = path.join(repoRoot, 'xss-lab.html');
+  const demoFile = path.join(repoRoot, 'demo', 'xss-lab.html');
+
+  const chosenPath = fs.existsSync(rootFile) ? rootFile : demoFile;
+  const text = fs.readFileSync(chosenPath, 'utf8');
 
   return {
     action: 'inspect_repo_file',
-    file: 'demo/xss-lab.html',
+    file: path.relative(repoRoot, chosenPath).replace(/\\/g, '/'),
     vulnerable_innerhtml_present: text.includes('preview.innerHTML = messageInput.value;'),
     file_excerpt: clip(text, 4000)
   };
@@ -224,7 +230,7 @@ async function main() {
         'You must choose exactly one action at a time. ' +
         'Allowed actions: open_lab, submit_payload, inspect_page, inspect_repo_file, finish. ' +
         'Return STRICT JSON only with keys action, args, reason, report_markdown. ' +
-        'Use /demo/xss-lab.html as the target page. ' +
+        'Use /xss-lab.html as the target page. ' +
         'Use small controlled payloads. ' +
         'When enough evidence exists, finish with markdown report using these exact sections: ' +
         '# Verdict\n# Pages checked\n# Actions taken\n# Payloads tried\n# Browser evidence\n# Source-code evidence\n# Next steps'
@@ -234,7 +240,7 @@ async function main() {
       content:
         `Start testing for XSS.\n` +
         `Base URL: ${TARGET_URL}\n` +
-        `Target page: /demo/xss-lab.html\n` +
+        `Target page: /xss-lab.html\n` +
         `Maximum turns: ${MAX_AGENT_TURNS}\n` +
         `Choose the first action.`
     }
@@ -263,7 +269,7 @@ async function main() {
 
         const findings = {
           target_url: TARGET_URL,
-          target_page: '/demo/xss-lab.html',
+          target_page: '/xss-lab.html',
           finished_at: new Date().toISOString(),
           llm_model: LLM_MODEL,
           turns: state.turnResults,
@@ -275,7 +281,6 @@ async function main() {
         };
 
         fs.writeFileSync(findingsPath, JSON.stringify(findings, null, 2), 'utf8');
-
         console.log(report);
         return;
       }
@@ -311,7 +316,7 @@ async function main() {
 
     const findings = {
       target_url: TARGET_URL,
-      target_page: '/demo/xss-lab.html',
+      target_page: '/xss-lab.html',
       finished_at: new Date().toISOString(),
       llm_model: LLM_MODEL,
       turns: state.turnResults,
