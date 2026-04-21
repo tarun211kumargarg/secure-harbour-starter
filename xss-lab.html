@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>XSS Lab</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 860px;
+      margin: 40px auto;
+      padding: 0 16px;
+    }
+
+    textarea, button {
+      width: 100%;
+      margin-top: 12px;
+      padding: 10px;
+      font-size: 16px;
+    }
+
+    #preview {
+      margin-top: 20px;
+      min-height: 120px;
+      border: 1px solid #ccc;
+      padding: 12px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>XSS Lab</h1>
+  <p>Demo-only page for agent testing.</p>
+
+  <label for="message">Message</label>
+  <textarea id="message" rows="6" placeholder="Type payload here"></textarea>
+
+  <button id="renderBtn" type="button">Render Preview</button>
+
+  <div id="preview"></div>
+
+  <script>
+    const renderBtn = document.getElementById('renderBtn');
+    const messageInput = document.getElementById('message');
+    const preview = document.getElementById('preview');
+
+    renderBtn.addEventListener('click', () => {
+      preview.innerHTML = messageInput.value;
+    });
+  </script>
+</body>
+</html>
