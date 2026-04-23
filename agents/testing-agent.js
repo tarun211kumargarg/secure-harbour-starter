@@ -8,6 +8,8 @@ const TARGET_URL = process.env.TARGET_URL;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const LLM_MODEL = process.env.LLM_MODEL || 'openai/gpt-4.1';
 const MAX_AGENT_TURNS = Number(process.env.MAX_AGENT_TURNS || '6');
+const LAB_PATH = process.env.LAB_PATH || '/xss-lab.html';
+const LAB_SOURCE_FILE = process.env.LAB_SOURCE_FILE || 'agent-fixtures/xss-lab.html';
 
 if (!TARGET_URL) throw new Error('TARGET_URL is missing');
 if (!GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is missing');
@@ -103,7 +105,7 @@ async function askTestingLLM(messages) {
 }
 
 async function openLab(page) {
-  const labUrl = new URL('/xss-lab.html', TARGET_URL).toString();
+  const labUrl = new URL(LAB_PATH, TARGET_URL).toString();
   await page.goto(labUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
   state.currentUrl = page.url();
@@ -125,7 +127,7 @@ async function submitPayload(page, args = {}) {
   const payload = args.payload || '<img src=x onerror=alert("XSS-LAB")>';
   state.lastPayload = payload;
 
-  if (!page.url().includes('/xss-lab.html')) {
+  if (!page.url().includes(path.basename(LAB_PATH))) {
     await openLab(page);
   }
 
@@ -172,12 +174,12 @@ async function inspectPage(page, args = {}) {
 }
 
 async function inspectRepoFile() {
-  const targetFilePath = path.join(repoRoot, 'demo', 'xss-lab.html');
+  const targetFilePath = path.join(repoRoot, LAB_SOURCE_FILE);
   const text = fs.readFileSync(targetFilePath, 'utf8');
 
   return {
     action: 'inspect_repo_file',
-    file: 'demo/xss-lab.html',
+    file: LAB_SOURCE_FILE,
     vulnerable_innerhtml_present: text.includes('preview.innerHTML = messageInput.value;'),
     file_excerpt: clip(text, 4000)
   };
@@ -223,7 +225,7 @@ async function main() {
         'You must choose exactly one action at a time. ' +
         'Allowed actions: open_lab, submit_payload, inspect_page, inspect_repo_file, finish. ' +
         'Return STRICT JSON only with keys action, args, reason, report_markdown. ' +
-        'Use /xss-lab.html as the target page. ' +
+        `Use ${LAB_PATH} as the target page. ` +
         'Use small controlled payloads. ' +
         'When enough evidence exists, finish with markdown report using these exact sections: ' +
         '# Verdict\n# Pages checked\n# Actions taken\n# Payloads tried\n# Browser evidence\n# Source-code evidence\n# Next steps'
@@ -233,9 +235,10 @@ async function main() {
       content:
         `Start testing for XSS.\n` +
         `Base URL: ${TARGET_URL}\n` +
-        `Target page: /xss-lab.html\n` +
+        `Target page: ${LAB_PATH}\n` +
+        `Source fixture: ${LAB_SOURCE_FILE}\n` +
         `Maximum turns: ${MAX_AGENT_TURNS}\n` +
-        `Choose the first action.`
+        'Choose the first action.'
     }
   ];
 
@@ -262,7 +265,8 @@ async function main() {
 
         const findings = {
           target_url: TARGET_URL,
-          target_page: '/xss-lab.html',
+          target_page: LAB_PATH,
+          source_file: LAB_SOURCE_FILE,
           finished_at: new Date().toISOString(),
           llm_model: LLM_MODEL,
           turns: state.turnResults,
@@ -290,7 +294,7 @@ async function main() {
         role: 'user',
         content:
           `TOOL_RESULT:\n${JSON.stringify(toolResult, null, 2)}\n\n` +
-          `Choose the next action. If there is enough evidence, use finish.`
+          'Choose the next action. If there is enough evidence, use finish.'
       });
     }
 
@@ -309,7 +313,8 @@ async function main() {
 
     const findings = {
       target_url: TARGET_URL,
-      target_page: '/xss-lab.html',
+      target_page: LAB_PATH,
+      source_file: LAB_SOURCE_FILE,
       finished_at: new Date().toISOString(),
       llm_model: LLM_MODEL,
       turns: state.turnResults,

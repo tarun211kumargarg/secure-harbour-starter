@@ -3,25 +3,28 @@ name: XSS Two Agent Pipeline
 on:
   workflow_dispatch:
     inputs:
-      target_url:
-        description: "Your site URL or preview URL"
+      commit_patch:
+        description: 'Commit the patched local fixture back to the repo after approval'
         required: true
-        type: string
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 permissions:
-  contents: read
+  contents: write
   models: read
 
 jobs:
   testing_agent:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 24
 
@@ -33,13 +36,29 @@ jobs:
         working-directory: agents
         run: npx playwright install --with-deps
 
+      - name: Start local XSS lab server
+        run: |
+          python3 -m http.server 4173 --directory agent-fixtures > /tmp/xss-lab-server.log 2>&1 &
+          echo $! > /tmp/xss-lab-server.pid
+          sleep 2
+
       - name: Run testing agent
         run: node agents/testing-agent.js
         env:
-          TARGET_URL: ${{ inputs.target_url }}
+          TARGET_URL: http://127.0.0.1:4173
+          LAB_PATH: /xss-lab.html
+          LAB_SOURCE_FILE: agent-fixtures/xss-lab.html
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LLM_MODEL: openai/gpt-4.1
-          MAX_AGENT_TURNS: "6"
+          MAX_AGENT_TURNS: '6'
+
+      - name: Stop local XSS lab server
+        if: always()
+        run: |
+          if [ -f /tmp/xss-lab-server.pid ]; then
+            kill "$(cat /tmp/xss-lab-server.pid)" || true
+          fi
+          cat /tmp/xss-lab-server.log || true
 
       - name: Show testing report
         if: always()
@@ -47,7 +66,7 @@ jobs:
           if [ -f agents/testing-report.md ]; then
             cat agents/testing-report.md
           else
-            echo "testing-report.md was not created"
+            echo 'testing-report.md was not created'
           fi
 
       - name: Upload testing output
@@ -65,15 +84,9 @@ jobs:
     needs: testing_agent
     environment: patch-approval
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
+        uses: actions/checkout@v4
 
       - name: Download testing output
         uses: actions/download-artifact@v4
@@ -86,6 +99,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LLM_MODEL: openai/gpt-4.1
+          LAB_SOURCE_FILE: agent-fixtures/xss-lab.html
 
       - name: Show patch report
         if: always()
@@ -93,7 +107,7 @@ jobs:
           if [ -f agents/patch-report.md ]; then
             cat agents/patch-report.md
           else
-            echo "patch-report.md was not created"
+            echo 'patch-report.md was not created'
           fi
 
       - name: Upload patch output
@@ -104,15 +118,28 @@ jobs:
           path: |
             agents/patch-report.md
             agents/remediation.patch
+            agent-fixtures/xss-lab.html
           if-no-files-found: warn
+
+      - name: Commit patched fixture back to repo
+        if: success() && inputs.commit_patch == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add agent-fixtures/xss-lab.html
+          if git diff --cached --quiet; then
+            echo 'No patch to commit'
+            exit 0
+          fi
+          git commit -m 'Patch local XSS lab fixture'
+          git push
 
   final_report:
     needs: [testing_agent, patching_agent]
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Download testing output
         uses: actions/download-artifact@v4
@@ -135,7 +162,7 @@ jobs:
           if [ -f agents/final-report.md ]; then
             cat agents/final-report.md
           else
-            echo "final-report.md was not created"
+            echo 'final-report.md was not created'
           fi
 
       - name: Upload final report

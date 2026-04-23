@@ -1,82 +1,78 @@
-# Secure Harbour Starter Website
+# Secure Harbour Final Repo
 
-A lightweight Azure Static Web Apps starter for Secure Harbour.
+This repo is split into two clean concerns:
 
-## What is included
+- `site/` — the safe public website deployed to Azure Static Web Apps
+- `api/` — the Azure Functions API used by the public site and owner dashboard
+- `agent-fixtures/` — local-only cybersecurity training fixtures used by GitHub Actions
+- `agents/` — the testing, patching, and final report scripts for the XSS two-agent demo
 
-- Public website: Home, About, Services, Contact, Thank You
-- Private owner dashboard at `/owner-portal`
-- Owner login helper page at `/owner-login`
-- Azure Functions API for:
-  - query submission
-  - query listing
-  - query counts
-  - query status updates
-  - signed-in user info
-- Cosmos DB integration for storing leads
-- Static Web Apps route protection with a custom `owner` role
+## Public website deployment
 
-## Recommended Azure setup
+The Azure workflow is in `.github/workflows/azure-static-webapp.yml`.
 
-1. Create an Azure Static Web Apps resource.
-2. Deploy this repo with app location `/` and API location `/api`.
-3. Create an Azure Cosmos DB for NoSQL account.
-4. Create a database named `secureharbour`.
-5. Create a container named `queries` with partition key `/id`.
-6. Add these application settings in Static Web Apps:
-   - `COSMOS_ENDPOINT`
-   - `COSMOS_KEY`
-   - `COSMOS_DATABASE_NAME=secureharbour`
-   - `COSMOS_CONTAINER_NAME=queries`
-7. Assign yourself the custom `owner` role in Static Web Apps.
+Set this GitHub repository secret before expecting production deployment:
 
-## Role assignment
+- `AZURE_STATIC_WEB_APPS_API_TOKEN`
 
-Static Web Apps supports custom roles through invitations. You can generate an invitation link from Azure CLI and assign the `owner` role.
+The Azure workflow deploys only the contents of `site/` as the public app root and `api/` as the serverless backend.
 
-Example:
+### Azure workflow behavior
 
-```bash
-az staticwebapp users invite \
-  --name <your-static-web-app-name> \
-  --resource-group <your-resource-group> \
-  --authentication-provider AAD \
-  --user-details <your-email-address> \
-  --roles owner \
-  --domain <your-app-domain>
+- `app_location: site`
+- `api_location: api`
+- `skip_app_build: true`
+- `skip_deploy_on_missing_secrets: true`
+
+That means agent-only commits do not fail loudly if the Azure token is not configured yet.
+
+## XSS two-agent demo
+
+The two-agent workflow is in `.github/workflows/xss-two-agent.yml`.
+
+It uses a **local-only** XSS lab fixture served from `agent-fixtures/xss-lab.html` on the GitHub Actions runner itself. This keeps the public site safe while still giving you a real detection-and-patching demo.
+
+### Agent roles
+
+- `testing_agent` — uses Playwright + GitHub Models to decide the next browser action, test the lab, and write `testing-report.md`
+- `patching_agent` — waits for your `patch-approval` environment approval, patches the vulnerable line in the local fixture, writes `patch-report.md`, and can commit the patched fixture back to the repo
+- `final_report` — combines testing + patching output into one report artifact
+
+### Required GitHub setup
+
+Create a GitHub Environment named:
+
+- `patch-approval`
+
+Add yourself as a required reviewer if you want a true approval gate.
+
+### How to run the demo
+
+1. Go to **Actions**
+2. Open **XSS Two Agent Pipeline**
+3. Click **Run workflow**
+4. Choose whether to commit the patch back to the repo (`true` or `false`)
+5. Start the run
+6. Approve the `patch-approval` environment when the patching job pauses
+
+### Where results appear
+
+Artifacts uploaded by the workflow:
+
+- `testing-output`
+- `patch-output`
+- `final-xss-report`
+
+## Notes on safety
+
+The intentionally vulnerable lab is **not** part of the public Azure site. It is only served locally inside GitHub Actions from `agent-fixtures/`.
+
+## Local repo layout
+
+```text
+site/
+api/
+agent-fixtures/
+agents/
+.github/workflows/
 ```
-
-Use `GitHub` instead of `AAD` if you want GitHub login.
-
-## Login URLs
-
-- Microsoft login: `/login/aad`
-- GitHub login: `/login/github`
-- Logout: `/logout`
-- Owner helper page: `/owner-login`
-- Owner dashboard: `/owner-portal`
-
-## Local development
-
-For the static pages only, you can use any simple web server.
-
-For the full experience with APIs and auth, use Azure Static Web Apps CLI.
-
-Install CLI:
-
-```bash
-npm install -g @azure/static-web-apps-cli
-```
-
-Start locally from the project root:
-
-```bash
-swa start . --api-location api
-```
-
-## Notes
-
-- Public query submission is open.
-- Owner dashboard APIs are protected by route rules and by server-side role checks.
-- The owner route is intentionally not linked from the public website.
-- This starter uses key-based Cosmos DB auth for launch speed. Later, move to managed identity and Cosmos DB RBAC.

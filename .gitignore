@@ -1,0 +1,5 @@
+node_modules/
+agents/node_modules/
+agents/screenshots/
+*.log
+.DS_Store
