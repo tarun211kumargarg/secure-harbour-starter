@@ -3,53 +3,27 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>XSS Lab Fixture</title>
+  <title>XSS Lab</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 860px;
-      margin: 40px auto;
-      padding: 0 16px;
-      color: #102037;
-    }
-    textarea, button {
-      width: 100%;
-      margin-top: 12px;
-      padding: 10px;
-      font-size: 16px;
-    }
-    #preview {
-      margin-top: 20px;
-      min-height: 120px;
-      border: 1px solid #c8d3e2;
-      padding: 12px;
-      border-radius: 8px;
-      background: #f8fbff;
-    }
-    .notice {
-      font-size: 14px;
-      color: #4a5970;
-    }
+    body { font-family: Arial, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 16px; }
+    textarea, button { width: 100%; margin-top: 12px; padding: 10px; font-size: 16px; }
+    #preview { margin-top: 20px; min-height: 120px; border: 1px solid #ccc; padding: 12px; border-radius: 8px; }
   </style>
 </head>
 <body>
-  <h1>XSS Lab Fixture</h1>
-  <p class="notice">Local-only fixture for the testing and patching agents. This file is not meant to be deployed publicly.</p>
-
+  <h1>XSS Lab</h1>
+  <p>Local-only demo page for agent testing and patching.</p>
   <label for="message">Message</label>
   <textarea id="message" rows="6" placeholder="Type payload here"></textarea>
-
   <button id="renderBtn" type="button">Render Preview</button>
-
   <div id="preview"></div>
-
   <script>
     const renderBtn = document.getElementById('renderBtn');
     const messageInput = document.getElementById('message');
     const preview = document.getElementById('preview');
 
     renderBtn.addEventListener('click', () => {
-      // INTENTIONALLY VULNERABLE FOR LOCAL AGENT DEMO FIXTURE
+      // DEMO-ONLY vulnerable sink for the private agent fixture
       preview.innerHTML = messageInput.value;
     });
   </script>

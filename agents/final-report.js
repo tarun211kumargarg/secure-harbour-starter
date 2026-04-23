@@ -27,10 +27,9 @@ if (fs.existsSync(findingsPath)) {
     findingsSummary = [
       '- Target URL: ' + (findings.target_url || 'unknown'),
       '- Target page: ' + (findings.target_page || 'unknown'),
-      '- Source file: ' + (findings.source_file || 'unknown'),
-      '- Turns used: ' + ((findings.turns || []).length),
-      '- Dialogs seen: ' + ((findings.dialogs || []).length),
-      '- Last payload: ' + (findings.last_payload || 'unknown')
+      '- Lab file: ' + (findings.lab_file || 'unknown'),
+      '- Browser dialogs observed: ' + ((findings.dialogs || []).length),
+      '- Turns executed: ' + ((findings.turns || []).length)
     ].join('\n');
   } catch {
     findingsSummary = '- Could not parse findings.json';
@@ -55,10 +54,8 @@ const finalReport = [
     : 'No patch was proposed.',
   '',
   '## Decision',
-  'Review the proposed patch manually before treating the issue as closed. The local-only fixture is safe to patch automatically after approval.'
+  'Review the proposed patch manually before applying it to any deployed environment.'
 ].join('\n');
 
 fs.writeFileSync(finalReportPath, finalReport, 'utf8');
-
-console.log('Final report written to:', finalReportPath);
 console.log(finalReport);
