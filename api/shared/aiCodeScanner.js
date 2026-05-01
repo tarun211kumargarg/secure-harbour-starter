@@ -5,8 +5,8 @@ const {
   getGitHubModelsModel
 } = require('./githubModels');
 
-const DEFAULT_MAX_AI_CHARS = Number(process.env.AI_SCAN_MAX_CHARS || 60000);
-const DEFAULT_MAX_AI_FILES = Number(process.env.AI_SCAN_MAX_FILES || 24);
+const DEFAULT_MAX_AI_CHARS = Number(process.env.AI_SCAN_MAX_CHARS || 9000);
+const DEFAULT_MAX_AI_FILES = Number(process.env.AI_SCAN_MAX_FILES || 10);
 const DEFAULT_MAX_AI_FINDINGS = Number(process.env.AI_SCAN_MAX_FINDINGS || 20);
 const DEFAULT_MAX_AI_TOKENS = Number(process.env.AI_SCAN_MAX_TOKENS || 2200);
 
@@ -234,9 +234,9 @@ async function callGitHubModelsForScan({ repository, filesForAi, ruleFindings, r
     focus: focus || '',
     backendRuleSignals: {
       summary: ruleScanSummary,
-      findings: (ruleFindings || []).slice(0, 20)
+      findings: (ruleFindings || []).slice(0, 8)
     },
-    sourceFiles: filesForAi.files
+    sourceFiles: filesForAi.files.map((file) => ({ path: file.path, size: file.size, excerpt: file.excerpt }))
   };
 
   let result;
@@ -271,18 +271,46 @@ async function callGitHubModelsForScan({ repository, filesForAi, ruleFindings, r
 }
 
 async function runAiRepositoryScan({ repository, files, ruleFindings, ruleScanSummary, focus }) {
-  const filesForAi = compactFilesForAi(files);
-  if (!filesForAi.files.length) {
-    throw new AiScanError('No source excerpts were available for AI scanning.', 422);
+  const attempts = [
+    { maxChars: normalizeNumber(process.env.AI_SCAN_MAX_CHARS, DEFAULT_MAX_AI_CHARS), maxFiles: normalizeNumber(process.env.AI_SCAN_MAX_FILES, DEFAULT_MAX_AI_FILES) },
+    { maxChars: 5000, maxFiles: 6 },
+    { maxChars: 2500, maxFiles: 4 }
+  ];
+
+  let filesForAi;
+  let model;
+  let parsed;
+  let lastError;
+
+  for (const attempt of attempts) {
+    filesForAi = compactFilesForAi(files, attempt);
+    if (!filesForAi.files.length) {
+      throw new AiScanError('No source excerpts were available for AI scanning.', 422);
+    }
+
+    try {
+      const result = await callGitHubModelsForScan({
+        repository,
+        filesForAi,
+        ruleFindings,
+        ruleScanSummary,
+        focus
+      });
+      model = result.model;
+      parsed = result.parsed;
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      const message = String(error.message || '').toLowerCase();
+      const isTokenLimit = error.statusCode === 413 || message.includes('tokens_limit_reached') || message.includes('request body too large');
+      if (!isTokenLimit) throw error;
+    }
   }
 
-  const { model, parsed } = await callGitHubModelsForScan({
-    repository,
-    filesForAi,
-    ruleFindings,
-    ruleScanSummary,
-    focus
-  });
+  if (lastError) {
+    throw new AiScanError('GitHub Models token limit reached even after compacting the scan input. Try a smaller repository or set AI_SCAN_MAX_CHARS=2000.', 413);
+  }
 
   const knownPaths = filesForAi.files.map((file) => file.path);
   const findings = normalizeAiFindings(parsed.findings, knownPaths);
@@ -304,11 +332,11 @@ async function runAiRepositoryScan({ repository, files, ruleFindings, ruleScanSu
     scanLimits: {
       maxAiFiles: filesForAi.maxFiles,
       maxAiChars: filesForAi.maxChars,
-      maxAiFindings: normalizeNumber(process.env.AI_SCAN_MAX_FINDINGS, DEFAULT_MAX_AI_FINDINGS)
+      maxAiFindings: normalizeNumber(process.env.AI_SCAN_MAX_FINDINGS, DEFAULT_MAX_AI_FINDINGS),
+      note: 'AI input is automatically compacted to stay under GitHub Models limits.'
     }
   };
 }
-
 module.exports = {
   AiScanError,
   compactFilesForAi,
