@@ -77,7 +77,7 @@ function githubHeaders() {
     'User-Agent': 'secure-harbour-source-scan-demo'
   };
 
-  const token = process.env.SCAN_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+  const token = process.env.SCAN_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GITHUB_MODELS_TOKEN;
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -93,7 +93,7 @@ async function fetchGitHubJson(url) {
   }
 
   if (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0') {
-    throw new PublicScanError('GitHub API rate limit reached. Configure SCAN_GITHUB_TOKEN or try again later.', 429);
+    throw new PublicScanError('GitHub API rate limit reached. Configure SCAN_GITHUB_TOKEN, GITHUB_TOKEN, or GITHUB_MODELS_TOKEN and try again later.', 429);
   }
 
   if (!response.ok) {

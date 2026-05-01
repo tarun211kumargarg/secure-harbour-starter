@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Repository Security Scan | Secure Harbour</title>
-  <meta name="description" content="Submit a public GitHub repository for a safe GitHub-token-only OWASP Top 10 source-code scan demo.">
+  <title>Live AI Repository Security Scan | Secure Harbour</title>
+  <meta name="description" content="Run a live backend AI scan against a public GitHub repository for OWASP Top 10 source-code risks.">
   <link rel="stylesheet" href="/assets/styles.css">
   <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
 </head>
@@ -32,14 +32,14 @@
       <div class="container">
         <div class="page-hero scan-hero">
           <div>
-            <div class="kicker">AI code security demo</div>
-            <h1>Scan a public GitHub repository for OWASP Top 10 source-code risks.</h1>
-            <p>Submit a public repository URL and Secure Harbour will run a safe, limited source review using deterministic OWASP rules and local risk triage in the backend. No paid AI token is required.</p>
+            <div class="kicker">Live AI code security demo</div>
+            <h1>Scan a public GitHub repository for OWASP Top 10 risks.</h1>
+            <p>Paste a public repository URL. The backend fetches source files through the GitHub API, sends bounded source evidence to GitHub Models, and returns a live report in this page.</p>
           </div>
           <div class="scan-hero-panel" aria-hidden="true">
             <span>Public GitHub repo</span>
-            <strong>OWASP Top 10</strong>
-            <span>Rules + local triage</span>
+            <strong>AI backend scan</strong>
+            <span>Live OWASP report</span>
           </div>
         </div>
       </div>
@@ -49,42 +49,30 @@
       <div class="container page-grid scan-grid">
         <article class="list-card">
           <div class="kicker">How this demo works</div>
-          <h2>Checkmarx-style positioning, lightweight demo boundaries</h2>
-          <p class="helper-text">This demo is designed for website showcase and lead generation. It inspects public source files through the GitHub API, applies OWASP Top 10 source rules, and stores the request in the private owner dashboard.</p>
+          <h2>On-demand secure code scanning from the website</h2>
+          <p class="helper-text">This public demo is designed to feel like a lightweight Checkmarx-style workflow while staying safe for a static website. The GitHub token remains server-side in Azure Functions; the browser only submits the repository URL and receives the report.</p>
           <ul>
             <li>Accepts public GitHub repositories only</li>
+            <li>Reads selected source files through the GitHub API</li>
             <li>Does not clone, build, run, or execute submitted code</li>
-            <li>Limits file count, file size, and total source characters scanned</li>
-            <li>Flags indicators for review rather than claiming confirmed exploitation</li>
-            <li>Uses local OWASP triage for prioritization and remediation summary; no external AI or paid model API is called</li>
+            <li>Uses backend rule signals plus AI reasoning to produce OWASP findings</li>
+            <li>Returns findings, severity, evidence, and remediation guidance immediately</li>
           </ul>
           <div class="demo-note">
-            <strong>Demo scope:</strong> Findings are source-code indicators. A production SAST program should also include dependency scanning, data-flow analysis, secrets scanning, authentication testing, and manual validation.
+            <strong>Demo scope:</strong> AI findings are indicators for review. A production SAST program should also include dependency scanning, data-flow analysis, secrets scanning, authentication testing, and manual validation.
           </div>
         </article>
 
         <aside class="form-card">
           <form data-repo-scan-form>
             <div class="field-grid">
-              <div class="field">
-                <label for="name">Name</label>
-                <input id="name" name="name" type="text" maxlength="120" required>
-              </div>
-              <div class="field">
-                <label for="company">Company</label>
-                <input id="company" name="company" type="text" maxlength="120">
-              </div>
-              <div class="field span-2">
-                <label for="email">Email</label>
-                <input id="email" name="email" type="email" maxlength="180" required>
-              </div>
               <div class="field span-2">
                 <label for="repoUrl">Public GitHub Repository URL</label>
                 <input id="repoUrl" name="repoUrl" type="url" maxlength="320" placeholder="https://github.com/owner/repository" required>
               </div>
               <div class="field span-2">
-                <label for="message">Context or notes</label>
-                <textarea id="message" name="message" maxlength="1500" placeholder="Optional: tell us what you want reviewed or why this repository matters."></textarea>
+                <label for="focus">Optional focus area</label>
+                <textarea id="focus" name="focus" maxlength="500" placeholder="Example: focus on auth, APIs, file upload, SSRF, injection, secrets, or leave blank for a general OWASP Top 10 scan."></textarea>
               </div>
               <div class="field" style="display:none;">
                 <label for="website">Website</label>
@@ -93,8 +81,8 @@
             </div>
             <div class="notice" data-scan-notice></div>
             <div style="margin-top: 16px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-              <button class="btn btn-primary" type="submit">Run Demo Scan</button>
-              <span class="field-note">The request and scan summary go to the private dashboard.</span>
+              <button class="btn btn-primary" type="submit">Run Live AI Scan</button>
+              <span class="field-note">Source is scanned server-side; no code is executed.</span>
             </div>
           </form>
         </aside>
@@ -106,7 +94,7 @@
         <div class="scan-result">
           <div class="section-head">
             <div>
-              <div class="kicker">Demo scan result</div>
+              <div class="kicker">Live scan result</div>
               <h2 data-result-repo>Repository scan complete</h2>
             </div>
             <span class="risk-badge" data-result-risk>Risk pending</span>
@@ -115,14 +103,16 @@
           <div class="scan-stat-grid" data-result-stats></div>
 
           <div class="scan-ai-summary">
-            <strong>Local OWASP triage summary</strong>
+            <strong>AI scanner summary</strong>
             <p data-result-ai>Summary pending.</p>
+            <div class="remediation-list" data-result-remediation></div>
+            <div class="review-note-list" data-result-notes></div>
           </div>
 
           <div>
             <div class="finding-section-title">
-              <strong>Top OWASP findings</strong>
-              <span class="field-note">Review and validate before remediation.</span>
+              <strong>AI-identified OWASP findings</strong>
+              <span class="field-note">Validate each indicator before remediation.</span>
             </div>
             <div class="finding-list" data-result-findings></div>
           </div>
@@ -135,7 +125,7 @@
     <div class="container footer-inner">
       <div>
         <strong>Secure Harbour</strong>
-        <div class="meta">Application security for modern engineering teams.</div>
+        <div class="meta">AI-assisted application security for modern engineering teams.</div>
       </div>
       <div class="footer-meta">
         <span>hello@secureharbour.example</span>

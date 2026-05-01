@@ -151,7 +151,7 @@ function renderScanSummary(item) {
     `<span>Total findings: ${escapeHtml(summary.totalFindings || 0)}</span>`,
     `<span>High / Medium: ${escapeHtml(counts.High || 0)} / ${escapeHtml(counts.Medium || 0)}</span>`,
     `<span>Files analyzed: ${escapeHtml(summary.analyzedFiles || tree.analyzedFiles || 0)} of ${escapeHtml(summary.candidateFiles || tree.candidateFiles || 0)} candidates</span>`,
-    `<span>Local triage: ${escapeHtml(ai.enabled ? `${ai.provider} ${ai.model || ''}`.trim() : 'local summary')}</span>`
+    `<span>AI reviewer: ${escapeHtml(ai.enabled ? `${ai.provider} ${ai.model || ''}`.trim() : 'fallback summary')}</span>`
   ];
 
   if (summary.treeTruncated || tree.truncated) {

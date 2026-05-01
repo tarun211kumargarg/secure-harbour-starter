@@ -1113,3 +1113,20 @@ main section {
     flex-direction: column;
   }
 }
+
+.ai-list-block {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.ai-list-block strong {
+  margin-bottom: 6px;
+}
+
+.ai-list-block ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--text-soft);
+  line-height: 1.7;
+}

@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  models: read
 
 jobs:
   source_scan:
@@ -27,8 +28,9 @@ jobs:
       - name: Run OWASP source scan agent
         run: node agents/source-scan-agent.js "${{ inputs.repository_url }}"
         env:
-          # Uses the built-in GitHub Actions token. No paid AI/API token is required.
-          SCAN_GITHUB_TOKEN: ${{ github.token }}
+          SCAN_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_MODELS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_MODELS_MODEL: ${{ vars.GITHUB_MODELS_MODEL }}
           SCAN_MAX_FILES: "60"
           SCAN_MAX_FINDINGS: "120"
 

@@ -6,7 +6,7 @@
       "direction": "in",
       "name": "req",
       "methods": ["post"],
-      "route": "submit-repo-scan"
+      "route": "repo-scan"
     },
     {
       "type": "http",

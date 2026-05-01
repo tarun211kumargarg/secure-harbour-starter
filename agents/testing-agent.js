@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
 
 const TARGET_URL = process.env.TARGET_URL;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const LLM_MODEL = process.env.LLM_MODEL || 'openai/gpt-4.1';
+const LLM_MODEL = process.env.LLM_MODEL || 'microsoft/phi-4-mini-instruct';
 const MAX_AGENT_TURNS = Number(process.env.MAX_AGENT_TURNS || '6');
 const LAB_FILE = process.env.LAB_FILE || 'agent-fixtures/xss-lab.html';
 

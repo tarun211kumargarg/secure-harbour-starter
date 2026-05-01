@@ -306,9 +306,9 @@ function toMarkdownReport({ repository, scanSummary, findings, aiSummary }) {
   lines.push(`Findings: ${scanSummary.totalFindings}`);
   lines.push(`Files analyzed: ${scanSummary.analyzedFiles}`);
   lines.push('');
-  lines.push('## Local OWASP triage summary');
+  lines.push('## AI reviewer summary');
   lines.push('');
-  lines.push(aiSummary && aiSummary.text ? aiSummary.text : 'Local OWASP triage summary was not generated for this run.');
+  lines.push(aiSummary && aiSummary.text ? aiSummary.text : 'AI reviewer was not configured for this run.');
   lines.push('');
   lines.push('## Findings');
   lines.push('');

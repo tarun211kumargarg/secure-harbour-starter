@@ -46,7 +46,7 @@ jobs:
           TARGET_URL: http://127.0.0.1:4173
           LAB_FILE: agent-fixtures/xss-lab.html
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LLM_MODEL: openai/gpt-4.1
+          LLM_MODEL: microsoft/phi-4-mini-instruct
           MAX_AGENT_TURNS: "6"
 
       - name: Show testing report

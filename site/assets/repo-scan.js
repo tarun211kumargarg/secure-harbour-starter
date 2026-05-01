@@ -5,6 +5,8 @@ const resultRepo = document.querySelector('[data-result-repo]');
 const resultRisk = document.querySelector('[data-result-risk]');
 const resultStats = document.querySelector('[data-result-stats]');
 const resultAi = document.querySelector('[data-result-ai]');
+const resultRemediation = document.querySelector('[data-result-remediation]');
+const resultNotes = document.querySelector('[data-result-notes]');
 const resultFindings = document.querySelector('[data-result-findings]');
 
 function escapeHtml(value) {
@@ -42,10 +44,20 @@ function renderFinding(finding) {
         <span class="severity-badge severity-${severityClass(finding.severity)}">${escapeHtml(finding.severity)}</span>
         <strong>${escapeHtml(finding.title)}</strong>
       </div>
-      <p class="meta">${escapeHtml(finding.owasp)} | ${escapeHtml(finding.path)}:${escapeHtml(finding.line)} | Confidence: ${escapeHtml(finding.confidence)}</p>
-      <div class="code-evidence">${escapeHtml(finding.evidence)}</div>
+      <p class="meta">${escapeHtml(finding.owasp)} | ${escapeHtml(finding.path)}:${escapeHtml(finding.line)} | Confidence: ${escapeHtml(finding.confidence)} | Source: ${escapeHtml(finding.source || 'ai')}</p>
+      ${finding.evidence ? `<div class="code-evidence">${escapeHtml(finding.evidence)}</div>` : ''}
       <p class="helper-text"><strong>Recommended action:</strong> ${escapeHtml(finding.recommendation)}</p>
     </article>
+  `;
+}
+
+function renderSimpleList(items, label) {
+  if (!Array.isArray(items) || !items.length) return '';
+  return `
+    <div class="ai-list-block">
+      <strong>${escapeHtml(label)}</strong>
+      <ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+    </div>
   `;
 }
 
@@ -55,23 +67,27 @@ function renderResult(result) {
   const tree = result.scanTree || {};
   const counts = summary.severityCounts || {};
   const findings = Array.isArray(result.findings) ? result.findings : [];
+  const ai = result.aiSummary || {};
 
   resultSection.hidden = false;
   resultRepo.textContent = `${repo.fullName || 'Repository'} scan complete`;
   resultRisk.textContent = `${summary.riskLevel || 'Unknown'} risk`;
   resultRisk.className = `risk-badge risk-${severityClass(summary.riskLevel || 'Low')}`;
   resultStats.innerHTML = [
-    renderStat('Total findings', summary.totalFindings || 0),
+    renderStat('AI findings', summary.totalFindings || 0),
     renderStat('High / Medium', `${counts.High || 0} / ${counts.Medium || 0}`),
     renderStat('Files analyzed', summary.analyzedFiles || tree.analyzedFiles || 0),
-    renderStat('Candidate files', summary.candidateFiles || tree.candidateFiles || 0)
+    renderStat('AI files reviewed', summary.filesSentToAi || 0),
+    renderStat('Rule signals', summary.ruleSignals || 0),
+    renderStat('Engine', summary.engine || 'AI backend scan')
   ].join('');
-  resultAi.textContent = result.aiSummary && result.aiSummary.text
-    ? result.aiSummary.text
-    : 'Local triage summary was not returned for this run.';
+
+  resultAi.textContent = ai.text || 'AI scan completed. Review findings and validate before remediation.';
+  resultRemediation.innerHTML = renderSimpleList(ai.remediationPlan, 'Priority remediation plan');
+  resultNotes.innerHTML = renderSimpleList(ai.reviewNotes, 'Review notes');
 
   if (!findings.length) {
-    resultFindings.innerHTML = '<div class="empty-state">No OWASP source-code indicators were identified within the demo scan limits.</div>';
+    resultFindings.innerHTML = '<div class="empty-state">The backend AI scanner did not identify OWASP Top 10 source-code indicators within the demo scan limits.</div>';
   } else {
     resultFindings.innerHTML = findings.slice(0, 12).map(renderFinding).join('');
   }
@@ -84,7 +100,11 @@ async function submitRepoScan(event) {
   const form = event.currentTarget;
   const submitButton = form.querySelector('button[type="submit"]');
   const formData = new FormData(form);
-  const payload = Object.fromEntries(formData.entries());
+  const payload = {
+    repoUrl: String(formData.get('repoUrl') || '').trim(),
+    focus: String(formData.get('focus') || '').trim(),
+    website: String(formData.get('website') || '').trim()
+  };
 
   if (payload.website) {
     showScanNotice('The scan request could not be submitted.', 'error');
@@ -92,11 +112,11 @@ async function submitRepoScan(event) {
   }
 
   submitButton.disabled = true;
-  submitButton.textContent = 'Scanning...';
-  showScanNotice('Scanning selected source files through the GitHub API. This usually takes a moment for small public repositories.', 'success');
+  submitButton.textContent = 'AI scanning...';
+  showScanNotice('Backend AI scan started. Secure Harbour is fetching selected source files and reviewing OWASP Top 10 risks.', 'success');
 
   try {
-    const response = await fetch('/api/submit-repo-scan', {
+    const response = await fetch('/api/repo-scan', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -107,16 +127,16 @@ async function submitRepoScan(event) {
     const result = await response.json();
 
     if (!response.ok) {
-      throw new Error(result.error || 'Unable to run the repository scan right now.');
+      throw new Error(result.error || 'Unable to run the live AI repository scan right now.');
     }
 
-    showScanNotice('Demo scan complete. The request is also available in the owner dashboard.', 'success');
+    showScanNotice('Live AI scan complete. Results are rendered below.', 'success');
     renderResult(result);
   } catch (error) {
     showScanNotice(error.message || 'Something went wrong. Please try again.', 'error');
   } finally {
     submitButton.disabled = false;
-    submitButton.textContent = 'Run Demo Scan';
+    submitButton.textContent = 'Run Live AI Scan';
   }
 }
 

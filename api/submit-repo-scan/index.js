@@ -1,23 +1,26 @@
-const crypto = require('crypto');
-const { getContainer } = require('../shared/cosmos');
-const { isValidEmail, normalizeString } = require('../shared/validation');
+const { normalizeString } = require('../shared/validation');
 const { collectRepositoryFiles, PublicScanError } = require('../shared/github');
-const { scanFiles } = require('../shared/sourceScanner');
-const { generateAiSummary } = require('../shared/aiReviewer');
+const { scanFiles, summarizeFindings } = require('../shared/sourceScanner');
+const { runAiRepositoryScan, AiScanError } = require('../shared/aiCodeScanner');
+
+const RISK_ORDER = {
+  Informational: 0,
+  Low: 1,
+  Medium: 2,
+  High: 3,
+  Critical: 4
+};
 
 function sanitizeScanPayload(payload) {
   return {
-    name: normalizeString(payload.name, 120),
-    company: normalizeString(payload.company, 120),
-    email: normalizeString(payload.email, 180).toLowerCase(),
     repoUrl: normalizeString(payload.repoUrl, 320),
-    message: normalizeString(payload.message, 1500),
+    focus: normalizeString(payload.focus, 500),
     website: normalizeString(payload.website, 120)
   };
 }
 
-function publicFindings(findings) {
-  return findings.slice(0, 25).map((finding) => ({
+function publicFindings(findings, limit = 25) {
+  return (findings || []).slice(0, limit).map((finding) => ({
     id: finding.id,
     ruleId: finding.ruleId,
     owasp: finding.owasp,
@@ -27,8 +30,13 @@ function publicFindings(findings) {
     path: finding.path,
     line: finding.line,
     evidence: finding.evidence,
-    recommendation: finding.recommendation
+    recommendation: finding.recommendation,
+    source: finding.source || 'rule'
   }));
+}
+
+function highestRisk(a, b) {
+  return (RISK_ORDER[b] || 0) > (RISK_ORDER[a] || 0) ? b : a;
 }
 
 module.exports = async function (context, req) {
@@ -38,78 +46,80 @@ module.exports = async function (context, req) {
     if (payload.website) {
       return {
         status: 400,
-        body: { error: 'Invalid submission.' }
+        body: { error: 'Invalid scan request.' }
       };
     }
 
-    if (!payload.name || !payload.email || !payload.repoUrl) {
+    if (!payload.repoUrl) {
       return {
         status: 400,
-        body: { error: 'Name, email, and GitHub repository URL are required.' }
-      };
-    }
-
-    if (!isValidEmail(payload.email)) {
-      return {
-        status: 400,
-        body: { error: 'Please enter a valid email address.' }
+        body: { error: 'Public GitHub repository URL is required.' }
       };
     }
 
     const repoContext = await collectRepositoryFiles(payload.repoUrl);
-    const { findings, scanSummary } = scanFiles(repoContext.files, repoContext);
-    const visibleFindings = publicFindings(findings);
-    const aiSummary = await generateAiSummary({
+
+    // Deterministic rules are used as backend signals and guardrails for the AI scanner.
+    // The public report is generated from the AI backend analysis, not from browser-side logic.
+    const ruleScan = scanFiles(repoContext.files, repoContext);
+    const ruleFindings = publicFindings(ruleScan.findings, 30);
+
+    const aiScan = await runAiRepositoryScan({
       repository: repoContext.repository,
-      scanSummary,
-      findings: visibleFindings
+      files: repoContext.files,
+      ruleFindings,
+      ruleScanSummary: ruleScan.scanSummary,
+      focus: payload.focus
     });
 
-    const item = {
-      id: crypto.randomUUID(),
-      recordType: 'repoScan',
-      createdAt: new Date().toISOString(),
-      status: 'New',
-      name: payload.name,
-      company: payload.company,
-      email: payload.email,
-      phone: '',
-      serviceInterestedIn: 'AI Code Security Scan',
-      message: payload.message || `Public repository scan requested for ${repoContext.repository.fullName}.`,
-      sourcePage: 'repo-scan',
-      ownerNotes: '',
-      repo: repoContext.repository,
-      scanLimits: repoContext.limits,
-      scanTree: repoContext.tree,
-      scanSummary,
-      findings: visibleFindings,
-      aiSummary
-    };
-
-    const container = getContainer();
-    await container.items.create(item);
+    const findings = publicFindings(aiScan.findings, 25);
+    const scanSummary = summarizeFindings(findings, repoContext.files, repoContext);
+    scanSummary.riskLevel = highestRisk(scanSummary.riskLevel, aiScan.riskLevel);
+    scanSummary.engine = aiScan.engine;
+    scanSummary.analysisMode = 'live-ai-backend';
+    scanSummary.aiModel = aiScan.model;
+    scanSummary.filesSentToAi = aiScan.filesSentToAi;
+    scanSummary.ruleSignals = ruleFindings.length;
 
     return {
-      status: 201,
+      status: 200,
       body: {
         success: true,
-        id: item.id,
-        repo: item.repo,
-        scanSummary: item.scanSummary,
-        scanTree: item.scanTree,
-        findings: item.findings,
-        aiSummary: item.aiSummary,
-        dashboardNote: 'The complete demo scan request is available in the owner dashboard.'
+        repo: repoContext.repository,
+        scanSummary,
+        scanTree: repoContext.tree,
+        scanLimits: {
+          github: repoContext.limits,
+          ai: aiScan.scanLimits
+        },
+        findings,
+        aiSummary: {
+          enabled: true,
+          provider: aiScan.provider,
+          model: aiScan.model,
+          text: aiScan.summary,
+          remediationPlan: aiScan.remediationPlan,
+          reviewNotes: aiScan.reviewNotes
+        },
+        metadata: {
+          generatedAt: scanSummary.generatedAt,
+          codeExecution: false,
+          dataSource: 'GitHub API source text',
+          note: 'AI findings are indicators for review and should be validated before remediation.'
+        }
       }
     };
   } catch (error) {
     context.log.error(error);
-    const status = error instanceof PublicScanError ? error.statusCode : 500;
+    const status = error instanceof PublicScanError || error instanceof AiScanError
+      ? error.statusCode
+      : 500;
+
     return {
       status,
       body: {
         error: status === 500
-          ? 'Unable to run the repository scan right now.'
+          ? 'Unable to run the live AI repository scan right now.'
           : error.message
       }
     };
