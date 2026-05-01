@@ -25,11 +25,14 @@ const drawerMessage = document.querySelector('[data-drawer-message]');
 const drawerContact = document.querySelector('[data-drawer-contact]');
 const drawerService = document.querySelector('[data-drawer-service]');
 const drawerCompany = document.querySelector('[data-drawer-company]');
+const drawerRepo = document.querySelector('[data-drawer-repo]');
+const drawerScanSummary = document.querySelector('[data-drawer-scan-summary]');
+const drawerFindings = document.querySelector('[data-drawer-findings]');
 const drawerId = document.querySelector('[data-drawer-id]');
 const dashboardNotice = document.querySelector('[data-dashboard-notice]');
 
 function statusClass(status) {
-  return status.replace(/\s+/g, '');
+  return String(status || '').replace(/\s+/g, '');
 }
 
 function setNotice(message, type = 'error') {
@@ -60,14 +63,18 @@ function renderTable() {
 
   emptyState.hidden = true;
   state.items.forEach((item) => {
+    const isRepoScan = item.recordType === 'repoScan';
+    const displayName = isRepoScan && item.repo && item.repo.fullName
+      ? `${item.name} / ${item.repo.fullName}`
+      : item.name;
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(displayName)}</td>
       <td>${escapeHtml(item.company || '-')}</td>
       <td>${escapeHtml(item.serviceInterestedIn)}</td>
       <td><span class="status-badge status-${statusClass(item.status)}">${escapeHtml(item.status)}</span></td>
       <td>${formatDate(item.createdAt)}</td>
-      <td><button data-open="${item.id}">View</button></td>
+      <td><button data-open="${escapeHtml(item.id)}">View</button></td>
     `;
     tableBody.appendChild(row);
   });
@@ -80,32 +87,100 @@ function renderTable() {
   });
 }
 
+function resetDrawer() {
+  drawerTitle.textContent = 'Select a query';
+  drawerMeta.textContent = 'Choose a row from the table to review details.';
+  drawerMessage.textContent = '-';
+  drawerContact.textContent = '-';
+  drawerService.textContent = '-';
+  drawerCompany.textContent = '-';
+  drawerRepo.textContent = '-';
+  drawerScanSummary.textContent = '-';
+  drawerFindings.innerHTML = '<p class="helper-text">-</p>';
+  drawerId.textContent = '-';
+  drawerStatus.value = 'New';
+  drawerNotes.value = '';
+  saveButton.disabled = true;
+}
+
 function renderDrawer() {
   const item = state.items.find((entry) => entry.id === state.activeId);
   if (!item) {
-    drawerTitle.textContent = 'Select a query';
-    drawerMeta.textContent = 'Choose a row from the table to review details.';
-    drawerMessage.textContent = '-';
-    drawerContact.textContent = '-';
-    drawerService.textContent = '-';
-    drawerCompany.textContent = '-';
-    drawerId.textContent = '-';
-    drawerStatus.value = 'New';
-    drawerNotes.value = '';
-    saveButton.disabled = true;
+    resetDrawer();
     return;
   }
 
-  drawerTitle.textContent = item.name;
+  const isRepoScan = item.recordType === 'repoScan';
+  const repoName = item.repo && item.repo.fullName ? item.repo.fullName : 'repository scan';
+
+  drawerTitle.textContent = isRepoScan ? `${item.name} - ${repoName}` : item.name;
   drawerMeta.textContent = `${formatDate(item.createdAt)} | ${item.email}`;
-  drawerMessage.textContent = item.message;
+  drawerMessage.textContent = item.message || '-';
   drawerContact.textContent = `${item.email} | ${item.phone || '-'}`;
   drawerService.textContent = item.serviceInterestedIn;
   drawerCompany.textContent = item.company || '-';
+  drawerRepo.innerHTML = isRepoScan ? renderRepoDetails(item) : '-';
+  drawerScanSummary.innerHTML = isRepoScan ? renderScanSummary(item) : '-';
+  drawerFindings.innerHTML = isRepoScan ? renderDashboardFindings(item.findings || []) : '<p class="helper-text">No source scan findings are attached to this query.</p>';
   drawerId.textContent = item.id;
   drawerStatus.value = item.status;
   drawerNotes.value = item.ownerNotes || '';
   saveButton.disabled = false;
+}
+
+function renderRepoDetails(item) {
+  const repo = item.repo || {};
+  const parts = [
+    `<strong>${escapeHtml(repo.fullName || 'Unknown repository')}</strong>`,
+    repo.url ? `<span>${escapeHtml(repo.url)}</span>` : '',
+    repo.defaultBranch ? `<span>Branch: ${escapeHtml(repo.defaultBranch)}</span>` : '',
+    repo.language ? `<span>Language: ${escapeHtml(repo.language)}</span>` : '',
+    repo.pushedAt ? `<span>Last push: ${escapeHtml(formatDate(repo.pushedAt))}</span>` : ''
+  ].filter(Boolean);
+
+  return `<div class="drawer-stack">${parts.join('')}</div>`;
+}
+
+function renderScanSummary(item) {
+  const summary = item.scanSummary || {};
+  const tree = item.scanTree || {};
+  const counts = summary.severityCounts || {};
+  const ai = item.aiSummary || {};
+  const parts = [
+    `<span class="risk-badge risk-${escapeHtml(summary.riskLevel || 'Low')}">${escapeHtml(summary.riskLevel || 'Unknown')} risk</span>`,
+    `<span>Total findings: ${escapeHtml(summary.totalFindings || 0)}</span>`,
+    `<span>High / Medium: ${escapeHtml(counts.High || 0)} / ${escapeHtml(counts.Medium || 0)}</span>`,
+    `<span>Files analyzed: ${escapeHtml(summary.analyzedFiles || tree.analyzedFiles || 0)} of ${escapeHtml(summary.candidateFiles || tree.candidateFiles || 0)} candidates</span>`,
+    `<span>Local triage: ${escapeHtml(ai.enabled ? `${ai.provider} ${ai.model || ''}`.trim() : 'local summary')}</span>`
+  ];
+
+  if (summary.treeTruncated || tree.truncated) {
+    parts.push('<span>Repository tree was truncated by GitHub; only available entries were scanned.</span>');
+  }
+
+  if (ai.text) {
+    parts.push(`<span><strong>Summary:</strong> ${escapeHtml(ai.text)}</span>`);
+  }
+
+  return `<div class="drawer-stack">${parts.join('')}</div>`;
+}
+
+function renderDashboardFindings(findings) {
+  if (!findings.length) {
+    return '<p class="helper-text">No OWASP source-code indicators were identified within the demo scan limits.</p>';
+  }
+
+  return findings.slice(0, 10).map((finding) => `
+    <article class="mini-finding">
+      <div class="finding-topline">
+        <span class="severity-badge severity-${escapeHtml(finding.severity)}">${escapeHtml(finding.severity)}</span>
+        <strong>${escapeHtml(finding.title)}</strong>
+      </div>
+      <p class="meta">${escapeHtml(finding.owasp)} | ${escapeHtml(finding.path)}:${escapeHtml(finding.line)} | ${escapeHtml(finding.confidence)} confidence</p>
+      <div class="code-evidence">${escapeHtml(finding.evidence)}</div>
+      <p class="helper-text">${escapeHtml(finding.recommendation)}</p>
+    </article>
+  `).join('');
 }
 
 function escapeHtml(value) {

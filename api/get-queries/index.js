@@ -38,6 +38,9 @@ module.exports = async function (context, req) {
             OR CONTAINS(LOWER(c.company), @search)
             OR CONTAINS(LOWER(c.email), @search)
             OR CONTAINS(LOWER(c.message), @search)
+            OR (IS_DEFINED(c.repo.fullName) AND CONTAINS(LOWER(c.repo.fullName), @search))
+            OR (IS_DEFINED(c.repo.url) AND CONTAINS(LOWER(c.repo.url), @search))
+            OR (IS_DEFINED(c.scanSummary.riskLevel) AND CONTAINS(LOWER(c.scanSummary.riskLevel), @search))
           )
         ORDER BY c.createdAt DESC
       `,

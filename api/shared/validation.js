@@ -4,7 +4,8 @@ const ALLOWED_SERVICES = [
   'Penetration Testing',
   'Red Teaming',
   'Vulnerability Assessment',
-  'Security Consulting'
+  'Security Consulting',
+  'AI Code Security Scan'
 ];
 
 function normalizeString(value, maxLength = 2500) {

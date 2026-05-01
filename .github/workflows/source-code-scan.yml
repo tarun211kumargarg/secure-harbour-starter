@@ -1,0 +1,52 @@
+name: Public Repository OWASP Source Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository_url:
+        description: "Public GitHub repository URL to scan"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  source_scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Secure Harbour repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run OWASP source scan agent
+        run: node agents/source-scan-agent.js "${{ inputs.repository_url }}"
+        env:
+          # Uses the built-in GitHub Actions token. No paid AI/API token is required.
+          SCAN_GITHUB_TOKEN: ${{ github.token }}
+          SCAN_MAX_FILES: "60"
+          SCAN_MAX_FINDINGS: "120"
+
+      - name: Show source scan report
+        if: always()
+        run: |
+          if [ -f agents/source-scan-report.md ]; then
+            cat agents/source-scan-report.md
+          else
+            echo "source-scan-report.md was not created"
+          fi
+
+      - name: Upload source scan output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-scan-output
+          path: |
+            agents/source-scan-results.json
+            agents/source-scan-report.md
+          if-no-files-found: warn

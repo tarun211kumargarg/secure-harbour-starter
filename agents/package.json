@@ -1,6 +1,9 @@
 {
   "name": "secure-harbour-agents",
   "private": true,
+  "scripts": {
+    "source-scan": "node source-scan-agent.js"
+  },
   "dependencies": {
     "playwright": "^1.54.0"
   }

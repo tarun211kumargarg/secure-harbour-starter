@@ -24,6 +24,10 @@
       "rewrite": "/contact.html"
     },
     {
+      "route": "/repo-scan",
+      "rewrite": "/repo-scan.html"
+    },
+    {
       "route": "/thank-you",
       "rewrite": "/thank-you.html"
     },
