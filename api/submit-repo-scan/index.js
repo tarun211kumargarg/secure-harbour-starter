@@ -2,6 +2,7 @@ const { normalizeString } = require('../shared/validation');
 const { collectRepositoryFiles, PublicScanError } = require('../shared/github');
 const { scanFiles, summarizeFindings } = require('../shared/sourceScanner');
 const { runAiRepositoryScan, AiScanError } = require('../shared/aiCodeScanner');
+const { GitHubModelsError } = require('../shared/githubModels');
 
 const RISK_ORDER = {
   Informational: 0,
@@ -111,16 +112,26 @@ module.exports = async function (context, req) {
     };
   } catch (error) {
     context.log.error(error);
-    const status = error instanceof PublicScanError || error instanceof AiScanError
+    const status = error instanceof PublicScanError || error instanceof AiScanError || error instanceof GitHubModelsError
       ? error.statusCode
       : 500;
+
+    const exposeDiagnostic = process.env.REPO_SCAN_DEBUG === 'true' || status >= 500;
 
     return {
       status,
       body: {
         error: status === 500
           ? 'Unable to run the live AI repository scan right now.'
-          : error.message
+          : error.message,
+        detail: exposeDiagnostic ? String(error.message || 'Unknown backend error') : undefined,
+        errorType: exposeDiagnostic ? String(error.name || 'Error') : undefined,
+        diagnostic: exposeDiagnostic ? {
+          hasGitHubModelsToken: Boolean(process.env.GITHUB_MODELS_TOKEN || process.env.GITHUB_TOKEN || process.env.SCAN_GITHUB_TOKEN),
+          model: process.env.GITHUB_MODELS_MODEL || process.env.AI_SCAN_MODEL || 'microsoft/phi-4-mini-instruct',
+          hasFetch: typeof fetch === 'function',
+          nodeVersion: process.version
+        } : undefined
       }
     };
   }
